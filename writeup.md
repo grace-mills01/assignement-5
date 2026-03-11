@@ -3,7 +3,7 @@
 # Team Members:
 
 - Grace Mills
--
+- Chris Hamel
 
 # Expected Data Structures
 
@@ -11,15 +11,8 @@ Focusing on line or method coverage tests I would expect data structures such as
 
 # Initial Code Examination
 
-The read me is very helpful as it shows how to edit the project as well as use it with the documentation linked. There are a lot of tests which are broken up into files to have cleaner organization. The source code mainly deals with parsing through code being tested or run and running the hook to see which lines are actually tested.
-I looked through the test_coverage and test_report files. Test_coverage mainly tests if the code is knowing what lines are being covered and which arn't. I mainly read through the comments and headers of each of the tests because those are what describe the purpose of each test the best.
-Test_report tests the reporting feature of the tool after it is run. I noticed the tests would check for what is in or not in the report because it is easier to know certain things the report should contain rather than making mock reports on mock files which would be too much manual work.
-Then I looked into parser.py, report.py, tracer.pyi, numbits.py and results.py.
-parser.py creates a parser object that handles checking if a line is exactable, a raw parse function that finds basic information on the file and its formatting and following functions to process comments, output messages and exception errors while the code runs.
-report.py is the code that writes the summery report after coverage is run on a certain file reporting which lines/branches run or didn't run and the overall percent of the code that ran.
-tracer.pyi seems to be a description of the typing constraints listed in another file that the tool follows when run.
-numbits.py is a function to handle the set data structure that holds line numbers and their corresponding status of executed or ignored into 'blobs' in the data base.
-results.py contains and analysis and analysis narrower class that hold the results as an object while the narrower class only looks at the relevant lines to improve the time complexities of its functions. the numbers class holds the raw data of the coverage run.
+The README provides helpful guidance on editing and using the project, with linked documentation. Tests are organized across multiple files for clarity. 'test_coverage' verifies that the tool correctly identiies covered and uncovered lines, while 'test_report' checks the reporting feature by asserting what the output contains rather than generating mock reports manually.
+The core source files each handle a distinct responsibility. 'parser.py' creates a parser object that checks line executability, parses file formatting, and handles comments, output messages, and exceptions. 'report.py' generates the summary report after a coverage run, detailing which lines or branches executed and the overall coverage percentage. 'tracer.pyi' describes the type constraints the tool follows at runtime. 'numbits.py' manages the set data structure that stores line numbers and their executed/ignored status as compressed blobs in the database. Finally, 'results.py' contains an Analysis class and a narrowed subclass that holds coverage results as objects, the narrower class focuses only on relevant lines to improve time complexity, while a separate Numbers class stores the raw coverage data.
 
 # Detailed Code Examination
 
@@ -29,10 +22,12 @@ I traced arcs_executed_set, a set of executed (from, to) arc pairs. It is create
 
 The set is only read after that, never mutated. arcs_missing() yields possible arcs that are not in arcs_executed_set (and not in no_branch/excluded); missing_branch_arcs() turns that into a dict mapping branch lines to lists of missing destination lines. branch_stats() then uses exit_counts and missing_branch_arcs to produce (total_exits, taken_exits) per line for HTML/XML reports. executed_branch_arcs() iterates over arcs_executed and groups by source line. So the values flow from raw coverage data to one canonical set per file, then to read-only use for missing and executed branch reporting.
 
-To verify this behavior I ran a small test script. It exercised the Numbers dataclass (creation, n_executed, pc_covered, __add__), format_lines with sample statement/line sets, and should_fail_under for fail-under logic. It also ran a live coverage run on a tiny file with branches: after start/stop/import, cov._analyze(filename) returns an Analysis whose arcs_executed_set and branch_stats() behave as above. Finally it built an Analysis by hand and used AnalysisNarrower.add_regions() then narrow() to confirm the narrowed Analysis gets the correct subset of statements and arcs. All checks passed.
+To verify this behavior I ran a small test script. It exercised the Numbers dataclass (creation, n_executed, pc_covered, **add**), format_lines with sample statement/line sets, and should_fail_under for fail-under logic. It also ran a live coverage run on a tiny file with branches: after start/stop/import, cov.\_analyze(filename) returns an Analysis whose arcs_executed_set and branch_stats() behave as above. Finally it built an Analysis by hand and used AnalysisNarrower.add_regions() then narrow() to confirm the narrowed Analysis gets the correct subset of statements and arcs. All checks passed.
 
 When the same logic is applied to a subset of lines (e.g., one region), `AnalysisNarrower` avoids re-scanning the whole analysis. In add_regions it precomputes, for each region (a frozenset of lines), the sets of arcs that touch that region, and stores them in region2arc_possibilities and region2arc_executed. Later, narrow(lines) does set intersection for statements, excluded, and executed, looks up the precomputed arc sets keyed by frozenset(lines), and builds a new Analysis with those smaller sets. So the flow is: original `arcs_executed_set` → split by region into `region2arc_executed` → each narrowed `Analysis` gets the subset of arcs for that region. The design keeps one source of truth (the full Analysis) and uses dicts keyed by region to reuse work and avoid quadratic behavior when narrowing many regions.
 
 # Summary
 
-Placeholder text.
+The coverage.py source code is notably high quality and well-organized. The files I analyzed had a clear organization and ordering of functions. The use of dataclasses like Analysis and Numbers makes the data structures self-documenting, and the factory pattern for building Analysis from coverage data keeps construction logic in one place, avoiding scattered mutation.
+The AnalysisNarrower design is particularly thoughtful, precomputing arc sets per region avoids quadratic behavior when narrowing many regions, showing attention to time complexity. Comments and naming conventions are clear to enhance readability and maintainability. I found the comments particularly helpful when defining the use cases of the code.
+Compared to my own code, this project is significantly more intricate, especially around making the whole project generalizable. Maintaining this codebase would feel approachable given its consistent patterns. One challenge would be the arc-tracking logic, which requires careful understanding of the branch coverage data flow before making changes.
